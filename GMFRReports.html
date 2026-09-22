@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>King's Bakeshop - GrabMerchant Financial Dashboard</title>
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load SheetJS for Excel Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bakery: {
+                            light: '#FFF8F0',
+                            primary: '#E07A5F',
+                            dark: '#3D405B',
+                            accent: '#F2CC8F',
+                            card: '#FFFFFF'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F9FAFB; }
+        .currency { font-variant-numeric: tabular-nums; }
+        /* Loader animation */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #E07A5F;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-bakery-light text-gray-800 min-h-screen flex flex-col">
+
+    <header class="bg-bakery-dark text-white py-6 shadow-md">
+        <div class="container mx-auto px-6 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-bakery-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.701 2.701 0 00-1.5-.454M9 6v2m3-2v2m3-2v2M9 3h.01M12 3h.01M15 3h.01M21 21v-7a2 2 0 00-2-2H5a2 2 0 00-2 2v7h18zm-3-9v-2a2 2 0 00-2-2H8a2 2 0 00-2 2v2h12z" />
+                </svg>
+                <h1 class="text-2xl font-bold tracking-wide">King's Bakeshop Dashboard</h1>
+            </div>
+            <div class="text-sm font-light text-gray-300">Advanced GrabMerchant Analyzer</div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-8 flex-grow flex flex-col gap-8">
+        
+        <!-- Controls Section -->
+        <div class="bg-white rounded-xl shadow-sm p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+            
+            <div class="flex-1 w-full">
+                <h2 class="text-lg font-semibold text-gray-800 mb-2">1. Upload Report(s)</h2>
+                <div class="relative">
+                    <input type="file" id="file-input" accept=".xlsx, .xls" multiple class="hidden" />
+                    <label for="file-input" class="cursor-pointer flex items-center justify-center w-full sm:w-auto px-6 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 hover:border-bakery-primary transition-all">
+                        <svg class="h-5 w-5 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span id="file-label-text">Select Excel Files (Multiple allowed)</span>
+                    </label>
+                </div>
+                <div id="loading-indicator" class="hidden items-center gap-2 mt-3 text-sm text-bakery-primary font-medium">
+                    <div class="loader"></div> Processing files...
+                </div>
+                <div id="file-error" class="text-red-500 text-sm mt-2 hidden"></div>
+            </div>
+
+            <div class="flex-1 w-full border-t md:border-t-0 md:border-l border-gray-200 pt-6 md:pt-0 md:pl-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-2">2. Select View Mode</h2>
+                <div class="relative">
+                    <select id="view-select" disabled class="block w-full pl-3 pr-10 py-3 text-base border border-gray-300 focus:outline-none focus:ring-bakery-primary focus:border-bakery-primary sm:text-sm rounded-lg bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <option value="overall">Overall Summary (All Files)</option>
+                        <option value="daily">Daily Breakdown</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- New Date Selector Section -->
+            <div id="date-selector-container" class="hidden w-full border-t md:border-t-0 md:border-l border-gray-200 pt-6 md:pt-0 md:pl-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-2">3. Select Date</h2>
+                <div class="relative">
+                    <select id="date-select" class="block w-full pl-3 pr-10 py-3 text-base border border-gray-300 focus:outline-none focus:ring-bakery-primary focus:border-bakery-primary sm:text-sm rounded-lg bg-gray-50">
+                        <!-- Options populated by JS -->
+                    </select>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Dashboard Content (Hidden initially) -->
+        <div id="dashboard-content" class="hidden flex flex-col gap-8">
+            
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Gross Sales -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
+                    <p class="text-sm font-medium text-gray-500">Total Gross Sales</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-1 currency" id="summary-gross">₱0.00</p>
+                </div>
+                <!-- Net Payout -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
+                    <p class="text-sm font-medium text-gray-500">Net Take-Home Payout</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-1 currency" id="summary-net">₱0.00</p>
+                </div>
+                <!-- Total Ad Spend -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-400">
+                    <p class="text-sm font-medium text-gray-500">Total Ad Spend</p>
+                    <p class="text-3xl font-bold text-red-600 mt-1 currency" id="summary-ads">₱0.00</p>
+                </div>
+                <!-- Margin -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500">
+                    <p class="text-sm font-medium text-gray-500">Effective Margin</p>
+                    <div class="flex items-end gap-2 mt-1">
+                        <p class="text-3xl font-bold text-gray-900 currency" id="summary-margin">0.00%</p>
+                        <span class="text-sm text-gray-500 mb-1">of gross</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h3 class="text-lg font-semibold text-gray-800" id="table-title">Performance Breakdown</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr id="table-head-row" class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b">
+                                <!-- Headers injected via JS -->
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-gray-100 text-gray-700 text-sm">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                        <tfoot id="table-foot" class="bg-gray-50 font-semibold text-gray-900 border-t-2 border-gray-200">
+                             <!-- Footer totals injected via JS -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // DOM Elements
+        const fileInput = document.getElementById('file-input');
+        const fileLabelText = document.getElementById('file-label-text');
+        const fileError = document.getElementById('file-error');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const viewSelect = document.getElementById('view-select');
+        const dateSelectorContainer = document.getElementById('date-selector-container');
+        const dateSelect = document.getElementById('date-select');
+        const dashboardContent = document.getElementById('dashboard-content');
+
+        // Global State to hold parsed data across all files
+        let globalRawData = [];
+        let uniqueDates = new Set();
+
+        // Number Formatter
+        const formatPHP = (num) => {
+            return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num || 0);
+        };
+
+        const formatPercent = (num) => {
+            return (num || 0).toFixed(2) + '%';
+        };
+
+        // Helper to find a value across possible key names safely
+        const getVal = (row, ...possibleKeys) => {
+            for (let key of possibleKeys) {
+                if (row[key] !== undefined && row[key] !== "") return parseFloat(row[key]) || 0;
+                for (let rKey in row) {
+                    if (rKey.trim().toLowerCase() === key.toLowerCase()) {
+                        return parseFloat(row[rKey]) || 0;
+                    }
+                }
+            }
+            return 0;
+        };
+
+        const getStringVal = (row, key) => {
+            for (let rKey in row) {
+                if (rKey.trim().toLowerCase() === key.toLowerCase()) {
+                    return (row[rKey] || "").toString().trim();
+                }
+            }
+            return "";
+        };
+
+        // Event Listeners
+        fileInput.addEventListener('change', async function(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            fileLabelText.textContent = `${files.length} file(s) selected`;
+            fileError.classList.add('hidden');
+            loadingIndicator.classList.replace('hidden', 'flex');
+            dashboardContent.classList.add('hidden');
+            viewSelect.disabled = true;
+            globalRawData = []; // Reset data
+            uniqueDates.clear(); // Reset dates tracker
+
+            try {
+                // Read all files asynchronously
+                const filePromises = Array.from(files).map(file => readExcelFile(file));
+                const results = await Promise.all(filePromises);
+                
+                // Flatten results into a single array
+                results.forEach(sheetData => {
+                    globalRawData = globalRawData.concat(sheetData);
+                });
+
+                if (globalRawData.length === 0) {
+                    throw new Error("No valid transactions found in the selected files.");
+                }
+
+                // Populate date dropdown
+                dateSelect.innerHTML = '<option value="all">All Dates (Grouped by Day)</option>';
+                const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b) - new Date(a));
+                sortedDates.forEach(dateStr => {
+                    const option = document.createElement('option');
+                    option.value = dateStr;
+                    option.textContent = dateStr;
+                    dateSelect.appendChild(option);
+                });
+
+                // Enable controls and render
+                viewSelect.disabled = false;
+                renderDashboard();
+                loadingIndicator.classList.replace('flex', 'hidden');
+                dashboardContent.classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                loadingIndicator.classList.replace('flex', 'hidden');
+                fileError.textContent = error.message || "An error occurred while parsing the files.";
+                fileError.classList.remove('hidden');
+            }
+        });
+
+        viewSelect.addEventListener('change', () => {
+            if (viewSelect.value === 'daily') {
+                dateSelectorContainer.classList.remove('hidden');
+                dateSelectorContainer.classList.add('flex-1');
+            } else {
+                dateSelectorContainer.classList.add('hidden');
+                dateSelectorContainer.classList.remove('flex-1');
+            }
+            renderDashboard();
+        });
+
+        dateSelect.addEventListener('change', () => {
+            renderDashboard();
+        });
+
+        // Parse single Excel File using Promise
+        function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        
+                        // Target 'Transactions' sheet, fallback to first
+                        const sheetName = workbook.SheetNames.includes('Transactions') 
+                            ? 'Transactions' 
+                            : workbook.SheetNames[0];
+                        
+                        const worksheet = workbook.Sheets[sheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                        
+                        const parsedRows = jsonData.map(row => parseRow(row));
+                        resolve(parsedRows);
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+                reader.onerror = (err) => reject(err);
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Standardize row data to make aggregation easier
+        function parseRow(row) {
+            const rawCategory = getStringVal(row, 'Category');
+            const category = rawCategory.toLowerCase();
+            const storeName = getStringVal(row, 'Store Name') || "Unknown Branch";
+            
+            // Extract Date (Format expected: "1 Sep 2026 2:39 PM")
+            const rawDate = getStringVal(row, 'Created On') || getStringVal(row, 'Date');
+            let dateVal = "Unknown Date";
+            if (rawDate) {
+                const parts = rawDate.split(' ');
+                if (parts.length >= 3) {
+                    dateVal = `${parts[0]} ${parts[1]} ${parts[2]}`; // e.g. "1 Sep 2026"
+                } else {
+                    dateVal = rawDate; // Fallback
+                }
+            }
+
+            const amount = getVal(row, 'Amount');
+            const totalVal = getVal(row, 'Total', 'Net Payout');
+            
+            // Add date to set if valid
+            if (dateVal !== "Unknown Date") {
+                uniqueDates.add(dateVal);
+            }
+
+            // Extract commission & tax for deductions analysis
+            const orderComm = getVal(row, 'Order commission', 'Commission');
+            const taxGrabFood = getVal(row, 'Tax on GrabFood commission', 'Tax');
+            const totalCommissionTax = orderComm + taxGrabFood; // Usually negative
+
+            // Determine values based on category logic
+            let grossSales = 0;
+            let adSpend = 0;
+
+            if (category === 'payment') {
+                grossSales = amount;
+            }
+            if (category === 'advertisement' || category === 'campaign') {
+                adSpend = Math.abs(totalVal); // Keep absolute for easy reading
+            }
+
+            return {
+                date: dateVal,
+                store: storeName,
+                category: category,
+                grossSales: grossSales,
+                netPayout: totalVal, // Can be positive or negative
+                adSpend: adSpend,
+                commissionTaxes: totalCommissionTax,
+                amount: amount
+            };
+        }
+
+        // Main function to aggregate data and update DOM
+        function renderDashboard() {
+            const mode = viewSelect.value; // 'overall' or 'daily'
+            const selectedDate = dateSelect.value;
+            const grouped = {};
+            let grandGross = 0;
+            let grandNet = 0;
+            let grandAds = 0;
+
+            // Filter data based on view mode and selected date
+            let dataToProcess = globalRawData;
+            if (mode === 'daily' && selectedDate !== 'all') {
+                dataToProcess = globalRawData.filter(row => row.date === selectedDate);
+            }
+
+            // Aggregation Loop
+            dataToProcess.forEach(row => {
+                const key = mode === 'daily' ? `${row.date} | ${row.store}` : row.store;
+
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        date: row.date,
+                        store: row.store,
+                        gross: 0,
+                        net: 0,
+                        ads: 0,
+                        commTaxes: 0
+                    };
+                }
+
+                // Sum up the group totals
+                grouped[key].gross += row.grossSales;
+                grouped[key].net += row.netPayout;
+                grouped[key].ads += row.adSpend;
+                grouped[key].commTaxes += row.commissionTaxes;
+
+                // Sum up grand totals
+                grandGross += row.grossSales;
+                grandNet += row.netPayout;
+                grandAds += row.adSpend;
+            });
+
+            // Update Summary Cards
+            document.getElementById('summary-gross').textContent = formatPHP(grandGross);
+            document.getElementById('summary-net').textContent = formatPHP(grandNet);
+            document.getElementById('summary-ads').textContent = formatPHP(grandAds);
+            
+            const margin = grandGross > 0 ? (grandNet / grandGross) * 100 : 0;
+            document.getElementById('summary-margin').textContent = formatPercent(margin);
+            
+            // Set Margin Color
+            const marginEl = document.getElementById('summary-margin');
+            marginEl.className = `text-3xl font-bold currency ${margin >= 60 ? 'text-green-600' : margin >= 40 ? 'text-orange-500' : 'text-red-600'}`;
+
+            // Build Table Layout based on mode
+            const tHeadRow = document.getElementById('table-head-row');
+            const tBody = document.getElementById('table-body');
+            const tFoot = document.getElementById('table-foot');
+            
+            tHeadRow.innerHTML = '';
+            tBody.innerHTML = '';
+            tFoot.innerHTML = '';
+
+            document.getElementById('table-title').textContent = mode === 'daily' ? 'Daily Breakdown by Branch' : 'Overall Performance by Branch';
+
+            if (mode === 'daily') {
+                tHeadRow.innerHTML += `<th class="px-6 py-4 font-semibold">Date</th>`;
+            }
+            
+            tHeadRow.innerHTML += `
+                <th class="px-6 py-4 font-semibold">Store Name</th>
+                <th class="px-6 py-4 font-semibold text-right">Gross Sales</th>
+                <th class="px-6 py-4 font-semibold text-right">Comm & Tax</th>
+                <th class="px-6 py-4 font-semibold text-right">Ad Spend</th>
+                <th class="px-6 py-4 font-semibold text-right">Net Payout</th>
+                <th class="px-6 py-4 font-semibold text-right">Margin %</th>
+            `;
+
+            // Sort logic: if daily, sort by Date then Gross. If overall, sort by Gross descending.
+            const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                if (mode === 'daily') {
+                    // Simple string compare for dates, fallback to gross
+                    const dateCmp = grouped[b].date.localeCompare(grouped[a].date);
+                    if (dateCmp !== 0) return dateCmp;
+                }
+                return grouped[b].gross - grouped[a].gross;
+            });
+
+            // Populate Rows
+            sortedKeys.forEach(key => {
+                const g = grouped[key];
+                
+                // Skip completely empty rows that might just be 0 value adjustments
+                if (g.gross === 0 && g.net === 0 && g.ads === 0 && g.commTaxes === 0) return;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                
+                let html = '';
+                if (mode === 'daily') {
+                    html += `<td class="px-6 py-4 whitespace-nowrap text-gray-500">${g.date}</td>`;
+                }
+                
+                const rowMargin = g.gross > 0 ? (g.net / g.gross) * 100 : 0;
+                let marginColor = rowMargin >= 60 ? 'text-green-600' : (rowMargin >= 40 ? 'text-orange-500' : 'text-red-500');
+
+                html += `
+                    <td class="px-6 py-4 font-medium text-gray-900">${g.store}</td>
+                    <td class="px-6 py-4 text-right currency">${formatPHP(g.gross)}</td>
+                    <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(Math.abs(g.commTaxes))}</td>
+                    <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(g.ads)}</td>
+                    <td class="px-6 py-4 text-right font-semibold text-gray-900 currency">${formatPHP(g.net)}</td>
+                    <td class="px-6 py-4 text-right font-medium ${marginColor}">${formatPercent(rowMargin)}</td>
+                `;
+                
+                tr.innerHTML = html;
+                tBody.appendChild(tr);
+            });
+
+            // Populate Footer Totals
+            const footerTr = document.createElement('tr');
+            let footHtml = '';
+            
+            // Align colspan depending on mode
+            const colSpan = mode === 'daily' ? 2 : 1;
+            
+            footHtml += `
+                <td colspan="${colSpan}" class="px-6 py-4 font-bold text-right">TOTALS:</td>
+                <td class="px-6 py-4 text-right currency">${formatPHP(grandGross)}</td>
+                <td class="px-6 py-4 text-right text-red-500 currency">-</td>
+                <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(grandAds)}</td>
+                <td class="px-6 py-4 text-right font-bold text-green-700 currency">${formatPHP(grandNet)}</td>
+                <td class="px-6 py-4 text-right font-bold currency">${formatPercent(margin)}</td>
+            `;
+            footerTr.innerHTML = footHtml;
+            tFoot.appendChild(footerTr);
+        }
+    </script>
+</body>
+</html>
