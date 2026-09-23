@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DM2 Sales Data Analyzer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+    <!-- Header Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-600 text-white rounded-lg shadow-md">
+                    <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 leading-tight">Data Analyzer</h1>
+                    <p class="text-xs text-slate-500">Upload CSV report to calculate product totals and view analytics</p>
+                </div>
+            </div>
+            
+            <div id="headerActions" class="hidden flex items-center gap-3">
+                <button id="uploadNewBtn" class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                    Upload New CSV
+                </button>
+                <button id="exportCsvBtn" class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Export Product Totals CSV
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        <!-- Notification Banner -->
+        <div id="alertBox" class="hidden p-4 rounded-xl border flex items-start gap-3 transition-all duration-200">
+            <i id="alertIcon" class="w-5 h-5 shrink-0 mt-0.5"></i>
+            <div class="flex-1">
+                <h4 id="alertTitle" class="text-sm font-semibold"></h4>
+                <p id="alertMessage" class="text-xs mt-0.5"></p>
+            </div>
+            <button id="closeAlertBtn" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Initial Blank State: Upload File Dropzone -->
+        <section id="uploadSection" class="bg-white rounded-2xl border-2 border-dashed border-slate-300 p-10 sm:p-16 text-center shadow-sm hover:border-indigo-500 hover:bg-indigo-50/20 transition-all cursor-pointer">
+            <input type="file" id="csvFileInput" accept=".csv" class="hidden">
+            <div class="max-w-md mx-auto flex flex-col items-center">
+                <div class="p-4 bg-indigo-50 text-indigo-600 rounded-full mb-4 shadow-sm">
+                    <i data-lucide="file-up" class="w-10 h-10"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800">UPLOAD MO DITO TIKOL</h2>
+                <p class="text-sm text-slate-500 mt-2">
+                    Drag and drop your sales report here or click to select a file from your computer.
+                </p>
+                <div class="mt-6 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <label for="csvFileInput" class="cursor-pointer px-6 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i>
+                        Browse Files
+                    </label>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-4">
+                    Supports standard CSV exports with headers: Date, Category, SKU, Item Name, Quantity Sold, Unit Price, Net Sales, etc.
+                </p>
+            </div>
+        </section>
+
+        <!-- Dashboard Content Container (Hidden until file uploaded) -->
+        <div id="dashboardContent" class="hidden space-y-6">
+
+            <!-- File Metadata Bar -->
+            <div class="bg-indigo-50/80 border border-indigo-100 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-indigo-900">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-check-2" class="w-4 h-4 text-indigo-600"></i>
+                    <span>Loaded File: <strong id="loadedFileName" class="font-semibold text-slate-800">DM2.csv</strong></span>
+                    <span id="loadedRowCount" class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium ml-2">0 valid rows parsed</span>
+                </div>
+                <button id="clearDataBtn" class="text-indigo-600 hover:text-indigo-800 font-medium underline flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    Clear & Upload Different File
+                </button>
+            </div>
+
+            <!-- Global Filter Bar -->
+            <section class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- Search -->
+                    <div class="relative">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Search Item / SKU</label>
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+                            <input type="text" id="searchInput" placeholder="Search product name or SKU..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Category Filter -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                        <select id="categoryFilter" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white">
+                            <option value="ALL">All Categories</option>
+                        </select>
+                    </div>
+
+                    <!-- Start Date -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Start Date</label>
+                        <input type="date" id="startDate" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-slate-700">
+                    </div>
+
+                    <!-- End Date -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">End Date</label>
+                        <input type="date" id="endDate" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-slate-700">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Key Metric Cards -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <!-- Total Products Sold -->
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider">Total Quantity Sold</span>
+                        <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                            <i data-lucide="package-check" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <p id="kpiTotalQuantity" class="text-2xl font-bold text-slate-900">0</p>
+                        <p class="text-[11px] text-slate-500 mt-1">Sum of items sold</p>
+                    </div>
+                </div>
+
+                <!-- Total Gross Sales -->
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider">Total Gross Sales</span>
+                        <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                            <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <p id="kpiGrossSales" class="text-2xl font-bold text-slate-900">$0.00</p>
+                        <p class="text-[11px] text-slate-500 mt-1">Original revenue before discount</p>
+                    </div>
+                </div>
+
+                <!-- Total Net Sales -->
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider">Total Net Sales</span>
+                        <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                            <i data-lucide="trending-up" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <p id="kpiNetSales" class="text-2xl font-bold text-slate-900">$0.00</p>
+                        <p class="text-[11px] text-slate-500 mt-1">Realized total revenue</p>
+                    </div>
+                </div>
+
+                <!-- Total Discounts -->
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider">Total Discounts</span>
+                        <div class="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                            <i data-lucide="tag" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <p id="kpiDiscounts" class="text-2xl font-bold text-slate-900">$0.00</p>
+                        <p class="text-[11px] text-slate-500 mt-1">SC/PWD & promo markdowns</p>
+                    </div>
+                </div>
+
+                <!-- Unique Products -->
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider">Unique Items</span>
+                        <div class="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                            <i data-lucide="layers" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <p id="kpiUniqueProducts" class="text-2xl font-bold text-slate-900">0</p>
+                        <p class="text-[11px] text-slate-500 mt-1">Distinct product SKUs</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chart Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Best-Selling Products by Quantity -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="award" class="w-4 h-4 text-indigo-500"></i>
+                        Top 10 Products by Quantity Sold
+                    </h3>
+                    <div class="relative flex-1 min-h-[280px]">
+                        <canvas id="topQuantityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Top Products by Net Sales Revenue -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="badge-dollar-sign" class="w-4 h-4 text-emerald-500"></i>
+                        Top 10 Products by Net Revenue
+                    </h3>
+                    <div class="relative flex-1 min-h-[280px]">
+                        <canvas id="topRevenueChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Category Breakdown -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-500"></i>
+                        Sales Breakdown by Category
+                    </h3>
+                    <div class="relative flex-1 min-h-[260px] flex items-center justify-center">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Daily Revenue Trend -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="line-chart" class="w-4 h-4 text-indigo-500"></i>
+                        Daily Net Sales Trend
+                    </h3>
+                    <div class="relative flex-1 min-h-[260px]">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Product Totals Aggregation Summary Table -->
+            <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Aggregated Product Totals Summary</h3>
+                        <p class="text-xs text-slate-500">Calculated sum of quantities sold, prices, total discounts, and revenue share</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="text-slate-500">Rows per page:</span>
+                        <select id="pageSizeSelect" class="border border-slate-300 rounded px-2 py-1 bg-white outline-none">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold uppercase tracking-wider select-none">
+                                <th class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors" data-sort="sku">
+                                    <div class="flex items-center gap-1">SKU <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors" data-sort="name">
+                                    <div class="flex items-center gap-1">Item Name <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors" data-sort="category">
+                                    <div class="flex items-center gap-1">Category <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition-colors" data-sort="quantity">
+                                    <div class="flex items-center justify-end gap-1">Total Qty Sold <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition-colors" data-sort="avgPrice">
+                                    <div class="flex items-center justify-end gap-1">Avg Unit Price <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition-colors" data-sort="grossSales">
+                                    <div class="flex items-center justify-end gap-1">Gross Sales <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition-colors" data-sort="discount">
+                                    <div class="flex items-center justify-end gap-1">Discounts <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition-colors" data-sort="netSales">
+                                    <div class="flex items-center justify-end gap-1">Net Sales <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition-colors" data-sort="sharePct">
+                                    <div class="flex items-center justify-end gap-1">% Contribution <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="productTableBody" class="divide-y divide-slate-100 text-slate-700">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Footer & Pagination -->
+                <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+                    <span id="paginationInfo">Showing 0 to 0 of 0 products</span>
+                    <div class="flex items-center gap-1" id="paginationControls">
+                        <!-- Controls generated via JS -->
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+    </main>
+
+    <script>
+        // Data State
+        let rawParsedRecords = [];
+        let aggregatedProducts = [];
+        let loadedFileName = '';
+        
+        let sortColumn = 'quantity';
+        let sortDirection = 'desc';
+        let currentPage = 1;
+        let pageSize = 25;
+
+        // Chart objects
+        let topQuantityChartObj = null;
+        let topRevenueChartObj = null;
+        let categoryChartObj = null;
+        let trendChartObj = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            const dropZone = document.getElementById('uploadSection');
+            const fileInput = document.getElementById('csvFileInput');
+
+            // Drag and drop handlers
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-50/50');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
+                    processUploadedFile();
+                }
+            });
+
+            fileInput.addEventListener('change', processUploadedFile);
+
+            // Filter Event Listeners
+            document.getElementById('searchInput').addEventListener('input', applyFiltersAndRender);
+            document.getElementById('categoryFilter').addEventListener('change', applyFiltersAndRender);
+            document.getElementById('startDate').addEventListener('change', applyFiltersAndRender);
+            document.getElementById('endDate').addEventListener('change', applyFiltersAndRender);
+
+            // Page Size Change
+            document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+                pageSize = parseInt(e.target.value, 10);
+                currentPage = 1;
+                sortAndRenderTable();
+            });
+
+            // Header Column Sorting
+            document.querySelectorAll('th[data-sort]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const col = th.getAttribute('data-sort');
+                    if (sortColumn === col) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = col;
+                        sortDirection = 'desc';
+                    }
+                    sortAndRenderTable();
+                });
+            });
+
+            // Action Buttons
+            document.getElementById('exportCsvBtn').addEventListener('click', exportSummaryCSV);
+            document.getElementById('uploadNewBtn').addEventListener('click', () => fileInput.click());
+            document.getElementById('clearDataBtn').addEventListener('click', resetDashboard);
+            document.getElementById('closeAlertBtn').addEventListener('click', hideAlert);
+        }
+
+        function processUploadedFile() {
+            const fileInput = document.getElementById('csvFileInput');
+            const file = fileInput.files[0];
+
+            if (!file) return;
+            loadedFileName = file.name;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: false, // Parse strings manually to safely handle currency/commas
+                complete: function(results) {
+                    if (!results.data || results.data.length === 0) {
+                        showAlert('Invalid File', 'The uploaded CSV file is empty or missing content.', 'error');
+                        return;
+                    }
+
+                    const cleanData = parseDM2Rows(results.data);
+
+                    if (cleanData.length === 0) {
+                        showAlert('No Valid Product Records', 'Could not detect valid product sales rows in this file. Please verify it is a valid DM2 export.', 'warning');
+                        return;
+                    }
+
+                    rawParsedRecords = cleanData;
+                    hideAlert();
+                    showDashboard();
+                    populateCategoryDropdown();
+                    applyFiltersAndRender();
+                },
+                error: function(err) {
+                    showAlert('File Read Error', 'An error occurred reading the file: ' + err.message, 'error');
+                }
+            });
+        }
+
+        /**
+         * Robust parser for DM2 CSV file structure
+         * Removes section totals, summary headers, empty spaces, and cleans monetary fields.
+         */
+        function parseDM2Rows(dataArray) {
+            const validRecords = [];
+
+            dataArray.forEach(row => {
+                // Get normalized key-value mappings (case-insensitive keys)
+                const keys = Object.keys(row);
+                const getVal = (possibleKeys) => {
+                    for (let p of possibleKeys) {
+                        const foundKey = keys.find(k => k.trim().toLowerCase() === p.toLowerCase());
+                        if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+                            return String(row[foundKey]).trim();
+                        }
+                    }
+                    return '';
+                };
+
+                const sku = getVal(['sku', 'item_sku', 'item sku', 'code', 'product_id', 'product id']);
+                const name = getVal(['item name', 'item_name', 'name', 'product_name', 'description', 'product']);
+                const category = getVal(['category', 'item category', 'cat']) || 'General';
+                const date = getVal(['date', 'transaction_date', 'trans_date', 'created_at']);
+
+                const qtyStr = getVal(['quantity sold', 'quantity_sold', 'quantity', 'qty', 'qty sold']);
+                const unitPriceStr = getVal(['unit price', 'unit_price', 'price', 'retail price']);
+                const grossSalesStr = getVal(['gross sales', 'gross_sales', 'gross']);
+                const netSalesStr = getVal(['net sales', 'net_sales', 'net']);
+                
+                const scPwdStr = getVal(['sc/pwd discount', 'sc_pwd_discount', 'pwd discount', 'sc discount']);
+                const otherDiscStr = getVal(['other discount', 'other_discount', 'discount']);
+
+                // Filter out non-product header / summary rows
+                const lowerName = name.toLowerCase();
+                if (!name || 
+                    lowerName.includes('total') || 
+                    lowerName.includes('subtotal') || 
+                    lowerName.includes('category total') || 
+                    lowerName.startsWith('goods') || 
+                    lowerName.startsWith('services') ||
+                    lowerName.includes('summary')) {
+                    return;
+                }
+
+                const quantity = cleanNumber(qtyStr);
+                const unitPrice = cleanNumber(unitPriceStr);
+                let grossSales = cleanNumber(grossSalesStr);
+                let netSales = cleanNumber(netSalesStr);
+                const discount = cleanNumber(scPwdStr) + cleanNumber(otherDiscStr);
+
+                // Default calculations if total figures were omitted in row
+                if (grossSales === 0 && quantity > 0 && unitPrice > 0) {
+                    grossSales = quantity * unitPrice;
+                }
+                if (netSales === 0 && grossSales > 0) {
+                    netSales = grossSales - discount;
+                }
+
+                // Ensure record has valid product indicators
+                if (quantity > 0 || netSales > 0 || grossSales > 0) {
+                    validRecords.push({
+                        date: formatDateStr(date),
+                        sku: sku || 'N/A',
+                        name: name,
+                        category: category,
+                        quantity: quantity,
+                        unitPrice: unitPrice,
+                        grossSales: grossSales,
+                        discount: discount,
+                        netSales: netSales
+                    });
+                }
+            });
+
+            return validRecords;
+        }
+
+        function applyFiltersAndRender() {
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+            const selectedCat = document.getElementById('categoryFilter').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            // 1. Filter Raw Sales Records
+            const filteredRaw = rawParsedRecords.filter(r => {
+                const matchesSearch = r.name.toLowerCase().includes(searchQuery) || r.sku.toLowerCase().includes(searchQuery);
+                const matchesCat = selectedCat === 'ALL' || r.category === selectedCat;
+                const matchesStart = !startDate || r.date >= startDate;
+                const matchesEnd = !endDate || r.date <= endDate;
+                return matchesSearch && matchesCat && matchesStart && matchesEnd;
+            });
+
+            // 2. Aggregate Sales Totals per Product
+            aggregatedProducts = aggregateByProduct(filteredRaw);
+
+            // 3. Render KPIs, Charts, and Table
+            renderKPIs(filteredRaw, aggregatedProducts);
+            renderCharts(filteredRaw, aggregatedProducts);
+            sortAndRenderTable();
+        }
+
+        function aggregateByProduct(rawRecords) {
+            const productMap = {};
+
+            rawRecords.forEach(r => {
+                const key = (r.sku && r.sku !== 'N/A') ? r.sku : r.name;
+
+                if (!productMap[key]) {
+                    productMap[key] = {
+                        sku: r.sku,
+                        name: r.name,
+                        category: r.category,
+                        quantity: 0,
+                        grossSales: 0,
+                        discount: 0,
+                        netSales: 0
+                    };
+                }
+
+                productMap[key].quantity += r.quantity;
+                productMap[key].grossSales += r.grossSales;
+                productMap[key].discount += r.discount;
+                productMap[key].netSales += r.netSales;
+            });
+
+            const overallNet = Object.values(productMap).reduce((sum, p) => sum + p.netSales, 0);
+
+            return Object.values(productMap).map(p => {
+                p.avgPrice = p.quantity > 0 ? (p.grossSales / p.quantity) : 0;
+                p.sharePct = overallNet > 0 ? (p.netSales / overallNet) * 100 : 0;
+                return p;
+            });
+        }
+
+        function renderKPIs(rawRecords, products) {
+            const totalQty = products.reduce((sum, p) => sum + p.quantity, 0);
+            const totalGross = products.reduce((sum, p) => sum + p.grossSales, 0);
+            const totalDiscount = products.reduce((sum, p) => sum + p.discount, 0);
+            const totalNet = products.reduce((sum, p) => sum + p.netSales, 0);
+            const uniqueSKUs = products.length;
+
+            document.getElementById('kpiTotalQuantity').innerText = totalQty.toLocaleString();
+            document.getElementById('kpiGrossSales').innerText = formatCurrency(totalGross);
+            document.getElementById('kpiNetSales').innerText = formatCurrency(totalNet);
+            document.getElementById('kpiDiscounts').innerText = formatCurrency(totalDiscount);
+            document.getElementById('kpiUniqueProducts').innerText = uniqueSKUs.toLocaleString();
+
+            document.getElementById('loadedRowCount').innerText = `${rawParsedRecords.length} sales entries analyzed`;
+            document.getElementById('loadedFileName').innerText = loadedFileName;
+        }
+
+        function sortAndRenderTable() {
+            aggregatedProducts.sort((a, b) => {
+                let valA = a[sortColumn];
+                let valB = b[sortColumn];
+
+                if (typeof valA === 'string') {
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }
+
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            const totalItems = aggregatedProducts.length;
+            const totalPages = Math.ceil(totalItems / pageSize) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const startIdx = (currentPage - 1) * pageSize;
+            const endIdx = Math.min(startIdx + pageSize, totalItems);
+            const pageData = aggregatedProducts.slice(startIdx, endIdx);
+
+            const tbody = document.getElementById('productTableBody');
+            tbody.innerHTML = '';
+
+            if (pageData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-400 font-medium">No product totals found matching your criteria.</td></tr>`;
+            } else {
+                pageData.forEach(p => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-slate-50 transition-colors';
+                    row.innerHTML = `
+                        <td class="py-3 px-4 font-mono text-[11px] text-slate-500">${escapeHtml(p.sku)}</td>
+                        <td class="py-3 px-4 font-semibold text-slate-800">${escapeHtml(p.name)}</td>
+                        <td class="py-3 px-4"><span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">${escapeHtml(p.category)}</span></td>
+                        <td class="py-3 px-4 text-right font-bold text-slate-900">${p.quantity.toLocaleString()}</td>
+                        <td class="py-3 px-4 text-right text-slate-600">${formatCurrency(p.avgPrice)}</td>
+                        <td class="py-3 px-4 text-right text-slate-600">${formatCurrency(p.grossSales)}</td>
+                        <td class="py-3 px-4 text-right text-amber-600">${p.discount > 0 ? '-' + formatCurrency(p.discount) : '$0.00'}</td>
+                        <td class="py-3 px-4 text-right font-bold text-emerald-600">${formatCurrency(p.netSales)}</td>
+                        <td class="py-3 px-4 text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <span class="font-medium text-slate-700">${p.sharePct.toFixed(1)}%</span>
+                                <div class="w-12 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                    <div class="bg-indigo-500 h-1.5 rounded-full" style="width: ${Math.min(p.sharePct, 100)}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('paginationInfo').innerText = totalItems > 0 
+                ? `Showing ${startIdx + 1} to ${endIdx} of ${totalItems} products`
+                : `Showing 0 to 0 of 0 products`;
+
+            renderPaginationControls(totalPages);
+        }
+
+        function renderPaginationControls(totalPages) {
+            const container = document.getElementById('paginationControls');
+            container.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            const prevBtn = document.createElement('button');
+            prevBtn.className = `px-2 py-1 rounded border border-slate-300 ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100'}`;
+            prevBtn.innerHTML = `<i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>`;
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; sortAndRenderTable(); } };
+            container.appendChild(prevBtn);
+
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = `px-2.5 py-1 rounded border ${i === currentPage ? 'bg-indigo-600 text-white border-indigo-600 font-bold' : 'border-slate-300 hover:bg-slate-100 text-slate-700'}`;
+                    pageBtn.innerText = i;
+                    pageBtn.onclick = () => { currentPage = i; sortAndRenderTable(); };
+                    container.appendChild(pageBtn);
+                } else if (i === currentPage - 2 || i === currentPage + 2) {
+                    const dots = document.createElement('span');
+                    dots.className = 'px-1 text-slate-400';
+                    dots.innerText = '...';
+                    container.appendChild(dots);
+                }
+            }
+
+            const nextBtn = document.createElement('button');
+            nextBtn.className = `px-2 py-1 rounded border border-slate-300 ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100'}`;
+            nextBtn.innerHTML = `<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>`;
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; sortAndRenderTable(); } };
+            container.appendChild(nextBtn);
+
+            lucide.createIcons();
+        }
+
+        function renderCharts(rawRecords, products) {
+            // 1. Top 10 Products by Quantity
+            const topQty = [...products].sort((a, b) => b.quantity - a.quantity).slice(0, 10);
+            if (topQuantityChartObj) topQuantityChartObj.destroy();
+            topQuantityChartObj = new Chart(document.getElementById('topQuantityChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: topQty.map(p => truncateText(p.name, 16)),
+                    datasets: [{
+                        label: 'Quantity Sold',
+                        data: topQty.map(p => p.quantity),
+                        backgroundColor: '#6366f1',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+                }
+            });
+
+            // 2. Top 10 Products by Net Sales Revenue
+            const topRev = [...products].sort((a, b) => b.netSales - a.netSales).slice(0, 10);
+            if (topRevenueChartObj) topRevenueChartObj.destroy();
+            topRevenueChartObj = new Chart(document.getElementById('topRevenueChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: topRev.map(p => truncateText(p.name, 16)),
+                    datasets: [{
+                        label: 'Net Revenue ($)',
+                        data: topRev.map(p => p.netSales),
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+                }
+            });
+
+            // 3. Category Sales Doughnut
+            const catMap = {};
+            products.forEach(p => catMap[p.category] = (catMap[p.category] || 0) + p.netSales);
+            if (categoryChartObj) categoryChartObj.destroy();
+            categoryChartObj = new Chart(document.getElementById('categoryChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(catMap),
+                    datasets: [{
+                        data: Object.values(catMap),
+                        backgroundColor: ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#64748b'],
+                        borderColor: '#ffffff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+                }
+            });
+
+            // 4. Daily Sales Trend Line Chart
+            const dateMap = {};
+            rawRecords.forEach(r => {
+                if (r.date && r.date !== 'N/A') {
+                    dateMap[r.date] = (dateMap[r.date] || 0) + r.netSales;
+                }
+            });
+            const dates = Object.keys(dateMap).sort();
+            if (trendChartObj) trendChartObj.destroy();
+            trendChartObj = new Chart(document.getElementById('trendChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: dates.length > 0 ? dates : ['No Date Data'],
+                    datasets: [{
+                        label: 'Net Revenue ($)',
+                        data: dates.length > 0 ? dates.map(d => dateMap[d]) : [0],
+                        borderColor: '#0284c7',
+                        backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                        fill: true,
+                        tension: 0.25,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+
+        function populateCategoryDropdown() {
+            const select = document.getElementById('categoryFilter');
+            const categories = [...new Set(rawParsedRecords.map(r => r.category))].filter(Boolean);
+            
+            select.innerHTML = '<option value="ALL">All Categories</option>';
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.innerText = cat;
+                select.appendChild(opt);
+            });
+        }
+
+        function exportSummaryCSV() {
+            if (!aggregatedProducts || aggregatedProducts.length === 0) {
+                showAlert('Export Failed', 'No aggregated data is available to export.', 'warning');
+                return;
+            }
+
+            const rows = aggregatedProducts.map(p => ({
+                'SKU': p.sku,
+                'Item Name': p.name,
+                'Category': p.category,
+                'Total Quantity Sold': p.quantity,
+                'Average Unit Price': p.avgPrice.toFixed(2),
+                'Gross Sales': p.grossSales.toFixed(2),
+                'Total Discount': p.discount.toFixed(2),
+                'Net Sales': p.netSales.toFixed(2),
+                '% Contribution': p.sharePct.toFixed(2) + '%'
+            }));
+
+            const csvContent = Papa.unparse(rows);
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `DM2_Product_Totals_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function showDashboard() {
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('dashboardContent').classList.remove('hidden');
+            document.getElementById('headerActions').classList.remove('hidden');
+            document.getElementById('headerActions').classList.add('flex');
+        }
+
+        function resetDashboard() {
+            rawParsedRecords = [];
+            aggregatedProducts = [];
+            loadedFileName = '';
+            document.getElementById('csvFileInput').value = '';
+
+            document.getElementById('uploadSection').classList.remove('hidden');
+            document.getElementById('dashboardContent').classList.add('hidden');
+            document.getElementById('headerActions').classList.add('hidden');
+            document.getElementById('headerActions').classList.remove('flex');
+            hideAlert();
+        }
+
+        function showAlert(title, message, type = 'error') {
+            const alertBox = document.getElementById('alertBox');
+            const alertIcon = document.getElementById('alertIcon');
+            const alertTitle = document.getElementById('alertTitle');
+            const alertMessage = document.getElementById('alertMessage');
+
+            alertTitle.innerText = title;
+            alertMessage.innerText = message;
+
+            if (type === 'error') {
+                alertBox.className = "p-4 rounded-xl border flex items-start gap-3 bg-red-50 border-red-200 text-red-900";
+                alertIcon.setAttribute('data-lucide', 'alert-circle');
+            } else if (type === 'warning') {
+                alertBox.className = "p-4 rounded-xl border flex items-start gap-3 bg-amber-50 border-amber-200 text-amber-900";
+                alertIcon.setAttribute('data-lucide', 'alert-triangle');
+            }
+
+            alertBox.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function hideAlert() {
+            document.getElementById('alertBox').classList.add('hidden');
+        }
+
+        function cleanNumber(val) {
+            if (!val) return 0;
+            const cleaned = String(val).replace(/[^0-9.-]/g, '');
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? 0 : num;
+        }
+
+        function formatDateStr(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            if (!isNaN(d.getTime())) {
+                return d.toISOString().slice(0, 10);
+            }
+            return dateStr;
+        }
+
+        function formatCurrency(val) {
+            return '$' + (val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function truncateText(str, length) {
+            return str.length > length ? str.substring(0, length) + '...' : str;
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
