@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DM2 Sales Data Analyzer</title>
+    <title>Sales Data Analyzer</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -53,7 +53,7 @@
                     <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-slate-900 leading-tight">Data Analyzer</h1>
+                    <h1 class="text-xl font-bold text-slate-900 leading-tight">DM2 Sales Data Analyzer</h1>
                     <p class="text-xs text-slate-500">Upload CSV report to calculate product totals and view analytics</p>
                 </div>
             </div>
@@ -183,7 +183,7 @@
                         </div>
                     </div>
                     <div>
-                        <p id="kpiGrossSales" class="text-2xl font-bold text-slate-900">$0.00</p>
+                        <p id="kpiGrossSales" class="text-2xl font-bold text-slate-900">₱0.00</p>
                         <p class="text-[11px] text-slate-500 mt-1">Original revenue before discount</p>
                     </div>
                 </div>
@@ -197,7 +197,7 @@
                         </div>
                     </div>
                     <div>
-                        <p id="kpiNetSales" class="text-2xl font-bold text-slate-900">$0.00</p>
+                        <p id="kpiNetSales" class="text-2xl font-bold text-slate-900">₱0.00</p>
                         <p class="text-[11px] text-slate-500 mt-1">Realized total revenue</p>
                     </div>
                 </div>
@@ -211,7 +211,7 @@
                         </div>
                     </div>
                     <div>
-                        <p id="kpiDiscounts" class="text-2xl font-bold text-slate-900">$0.00</p>
+                        <p id="kpiDiscounts" class="text-2xl font-bold text-slate-900">₱0.00</p>
                         <p class="text-[11px] text-slate-500 mt-1">SC/PWD & promo markdowns</p>
                     </div>
                 </div>
@@ -656,7 +656,7 @@
                         <td class="py-3 px-4 text-right font-bold text-slate-900">${p.quantity.toLocaleString()}</td>
                         <td class="py-3 px-4 text-right text-slate-600">${formatCurrency(p.avgPrice)}</td>
                         <td class="py-3 px-4 text-right text-slate-600">${formatCurrency(p.grossSales)}</td>
-                        <td class="py-3 px-4 text-right text-amber-600">${p.discount > 0 ? '-' + formatCurrency(p.discount) : '$0.00'}</td>
+                        <td class="py-3 px-4 text-right text-amber-600">${p.discount > 0 ? '-' + formatCurrency(p.discount) : '₱0.00'}</td>
                         <td class="py-3 px-4 text-right font-bold text-emerald-600">${formatCurrency(p.netSales)}</td>
                         <td class="py-3 px-4 text-right">
                             <div class="flex items-center justify-end gap-1.5">
@@ -747,7 +747,7 @@
                 data: {
                     labels: topRev.map(p => truncateText(p.name, 16)),
                     datasets: [{
-                        label: 'Net Revenue ($)',
+                        label: 'Net Revenue (₱)',
                         data: topRev.map(p => p.netSales),
                         backgroundColor: '#10b981',
                         borderRadius: 4
@@ -797,7 +797,23 @@
                 data: {
                     labels: dates.length > 0 ? dates : ['No Date Data'],
                     datasets: [{
-                        label: 'Net Revenue ($)',
+                        label: 'Net Revenue (₱)',
+                        data: dates.length > 0 ? dates.map(d => dateMap[d]) : [0],
+                        borderColor: '#0284c7',
+                        backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                        fill: true,
+                        tension: 0.25,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+                }
+            });
+
                         data: dates.length > 0 ? dates.map(d => dateMap[d]) : [0],
                         borderColor: '#0284c7',
                         backgroundColor: 'rgba(2, 132, 199, 0.08)',
@@ -919,7 +935,7 @@
         }
 
         function formatCurrency(val) {
-            return '$' + (val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return '₱' + (val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         function truncateText(str, length) {
