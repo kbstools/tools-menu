@@ -6,7 +6,6 @@
     <title>GMFR Reports</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <script>
@@ -34,7 +33,6 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #F9FAFB; }
         .currency { font-variant-numeric: tabular-nums; }
-        /* Loader animation */
         .loader {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #E07A5F;
@@ -59,7 +57,7 @@
                 </svg>
                 <h1 class="text-2xl font-bold tracking-wide">GRAB GMFR</h1>
             </div>
-            <div class="text-sm font-light text-gray-300">GMFR Report Analyzer</div>
+            <div class="text-sm font-light text-gray-300">GMFR Report Analyzer with Cancellations</div>
         </div>
     </header>
 
@@ -95,7 +93,7 @@
                 </div>
             </div>
 
-            <!-- New Date Selector Section -->
+            <!-- Date Selector Section -->
             <div id="date-selector-container" class="hidden w-full border-t md:border-t-0 md:border-l border-gray-200 pt-6 md:pt-0 md:pl-6">
                 <h2 class="text-lg font-semibold text-gray-800 mb-2">3. Select Date</h2>
                 <div class="relative">
@@ -111,28 +109,32 @@
         <div id="dashboard-content" class="hidden flex flex-col gap-8">
             
             <!-- Summary Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <!-- Gross Sales -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
                     <p class="text-sm font-medium text-gray-500">Total Gross Sales</p>
-                    <p class="text-3xl font-bold text-gray-900 mt-1 currency" id="summary-gross">₱0.00</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-1 currency" id="summary-gross">₱0.00</p>
                 </div>
                 <!-- Net Payout -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
                     <p class="text-sm font-medium text-gray-500">Net Take-Home Payout</p>
-                    <p class="text-3xl font-bold text-gray-900 mt-1 currency" id="summary-net">₱0.00</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-1 currency" id="summary-net">₱0.00</p>
                 </div>
                 <!-- Total Ad Spend -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-400">
                     <p class="text-sm font-medium text-gray-500">Total Ad Spend</p>
-                    <p class="text-3xl font-bold text-red-600 mt-1 currency" id="summary-ads">₱0.00</p>
+                    <p class="text-2xl font-bold text-red-600 mt-1 currency" id="summary-ads">₱0.00</p>
+                </div>
+                <!-- Cancellations -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-amber-500">
+                    <p class="text-sm font-medium text-gray-500">Cancelled Orders</p>
+                    <p class="text-2xl font-bold text-amber-600 mt-1" id="summary-cancels">0</p>
                 </div>
                 <!-- Margin -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500">
                     <p class="text-sm font-medium text-gray-500">Effective Margin</p>
-                    <div class="flex items-end gap-2 mt-1">
-                        <p class="text-3xl font-bold text-gray-900 currency" id="summary-margin">0.00%</p>
-                        <span class="text-sm text-gray-500 mb-1">of gross</span>
+                    <div class="flex items-end gap-1 mt-1">
+                        <p class="text-2xl font-bold text-gray-900 currency" id="summary-margin">0.00%</p>
                     </div>
                 </div>
             </div>
@@ -163,7 +165,6 @@
     </main>
 
     <script>
-        // DOM Elements
         const fileInput = document.getElementById('file-input');
         const fileLabelText = document.getElementById('file-label-text');
         const fileError = document.getElementById('file-error');
@@ -173,11 +174,9 @@
         const dateSelect = document.getElementById('date-select');
         const dashboardContent = document.getElementById('dashboard-content');
 
-        // Global State to hold parsed data across all files
         let globalRawData = [];
         let uniqueDates = new Set();
 
-        // Number Formatter
         const formatPHP = (num) => {
             return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num || 0);
         };
@@ -186,7 +185,6 @@
             return (num || 0).toFixed(2) + '%';
         };
 
-        // Helper to find a value across possible key names safely
         const getVal = (row, ...possibleKeys) => {
             for (let key of possibleKeys) {
                 if (row[key] !== undefined && row[key] !== "") return parseFloat(row[key]) || 0;
@@ -208,7 +206,6 @@
             return "";
         };
 
-        // Event Listeners
         fileInput.addEventListener('change', async function(e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
@@ -218,15 +215,13 @@
             loadingIndicator.classList.replace('hidden', 'flex');
             dashboardContent.classList.add('hidden');
             viewSelect.disabled = true;
-            globalRawData = []; // Reset data
-            uniqueDates.clear(); // Reset dates tracker
+            globalRawData = [];
+            uniqueDates.clear();
 
             try {
-                // Read all files asynchronously
                 const filePromises = Array.from(files).map(file => readExcelFile(file));
                 const results = await Promise.all(filePromises);
                 
-                // Flatten results into a single array
                 results.forEach(sheetData => {
                     globalRawData = globalRawData.concat(sheetData);
                 });
@@ -235,7 +230,6 @@
                     throw new Error("No valid transactions found in the selected files.");
                 }
 
-                // Populate date dropdown
                 dateSelect.innerHTML = '<option value="all">All Dates (Grouped by Day)</option>';
                 const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b) - new Date(a));
                 sortedDates.forEach(dateStr => {
@@ -245,7 +239,6 @@
                     dateSelect.appendChild(option);
                 });
 
-                // Enable controls and render
                 viewSelect.disabled = false;
                 renderDashboard();
                 loadingIndicator.classList.replace('flex', 'hidden');
@@ -274,7 +267,6 @@
             renderDashboard();
         });
 
-        // Parse single Excel File using Promise
         function readExcelFile(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -282,15 +274,9 @@
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-                        
-                        // Target 'Transactions' sheet, fallback to first
-                        const sheetName = workbook.SheetNames.includes('Transactions') 
-                            ? 'Transactions' 
-                            : workbook.SheetNames[0];
-                        
+                        const sheetName = workbook.SheetNames.includes('Transactions') ? 'Transactions' : workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[sheetName];
                         const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-                        
                         const parsedRows = jsonData.map(row => parseRow(row));
                         resolve(parsedRows);
                     } catch (err) {
@@ -302,76 +288,74 @@
             });
         }
 
-        // Standardize row data to make aggregation easier
         function parseRow(row) {
             const rawCategory = getStringVal(row, 'Category');
             const category = rawCategory.toLowerCase();
             const storeName = getStringVal(row, 'Store Name') || "Unknown Branch";
+            const status = getStringVal(row, 'Status').toLowerCase();
+            const cancelReason = getStringVal(row, 'Cancellation Reason');
             
-            // Extract Date (Format expected: "1 Sep 2026 2:39 PM")
             const rawDate = getStringVal(row, 'Created On') || getStringVal(row, 'Date');
             let dateVal = "Unknown Date";
             if (rawDate) {
                 const parts = rawDate.split(' ');
                 if (parts.length >= 3) {
-                    dateVal = `${parts[0]} ${parts[1]} ${parts[2]}`; // e.g. "1 Sep 2026"
+                    dateVal = `${parts[0]} ${parts[1]} ${parts[2]}`;
                 } else {
-                    dateVal = rawDate; // Fallback
+                    dateVal = rawDate;
                 }
             }
 
             const amount = getVal(row, 'Amount');
             const totalVal = getVal(row, 'Total', 'Net Payout');
             
-            // Add date to set if valid
             if (dateVal !== "Unknown Date") {
                 uniqueDates.add(dateVal);
             }
 
-            // Extract commission & tax for deductions analysis
             const orderComm = getVal(row, 'Order commission', 'Commission');
             const taxGrabFood = getVal(row, 'Tax on GrabFood commission', 'Tax');
-            const totalCommissionTax = orderComm + taxGrabFood; // Usually negative
+            const totalCommissionTax = orderComm + taxGrabFood;
 
-            // Determine values based on category logic
             let grossSales = 0;
             let adSpend = 0;
+            let isCancelled = (status === 'cancelled');
 
-            if (category === 'payment') {
+            if (category === 'payment' && !isCancelled) {
                 grossSales = amount;
             }
             if (category === 'advertisement' || category === 'campaign') {
-                adSpend = Math.abs(totalVal); // Keep absolute for easy reading
+                adSpend = Math.abs(totalVal);
             }
 
             return {
                 date: dateVal,
                 store: storeName,
                 category: category,
+                status: status,
+                cancelReason: cancelReason,
                 grossSales: grossSales,
-                netPayout: totalVal, // Can be positive or negative
+                netPayout: isCancelled ? 0 : totalVal,
                 adSpend: adSpend,
-                commissionTaxes: totalCommissionTax,
-                amount: amount
+                commissionTaxes: isCancelled ? 0 : totalCommissionTax,
+                isCancelled: isCancelled ? 1 : 0
             };
         }
 
-        // Main function to aggregate data and update DOM
         function renderDashboard() {
-            const mode = viewSelect.value; // 'overall' or 'daily'
+            const mode = viewSelect.value;
             const selectedDate = dateSelect.value;
             const grouped = {};
             let grandGross = 0;
             let grandNet = 0;
             let grandAds = 0;
+            let grandCancels = 0;
 
-            // Filter data based on view mode and selected date
             let dataToProcess = globalRawData;
             if (mode === 'daily' && selectedDate !== 'all') {
                 dataToProcess = globalRawData.filter(row => row.date === selectedDate);
             }
 
-            // Aggregation Loop
             dataToProcess.forEach(row => {
                 const key = mode === 'daily' ? `${row.date} | ${row.store}` : row.store;
 
@@ -382,35 +366,31 @@
                         gross: 0,
                         net: 0,
                         ads: 0,
-                        commTaxes: 0
+                        commTaxes: 0,
+                        cancels: 0
                     };
                 }
 
-                // Sum up the group totals
                 grouped[key].gross += row.grossSales;
                 grouped[key].net += row.netPayout;
                 grouped[key].ads += row.adSpend;
                 grouped[key].commTaxes += row.commissionTaxes;
+                grouped[key].cancels += row.isCancelled;
 
-                // Sum up grand totals
                 grandGross += row.grossSales;
                 grandNet += row.netPayout;
                 grandAds += row.adSpend;
+                grandCancels += row.isCancelled;
             });
 
-            // Update Summary Cards
             document.getElementById('summary-gross').textContent = formatPHP(grandGross);
             document.getElementById('summary-net').textContent = formatPHP(grandNet);
             document.getElementById('summary-ads').textContent = formatPHP(grandAds);
+            document.getElementById('summary-cancels').textContent = grandCancels;
             
             const margin = grandGross > 0 ? (grandNet / grandGross) * 100 : 0;
             document.getElementById('summary-margin').textContent = formatPercent(margin);
             
-            // Set Margin Color
-            const marginEl = document.getElementById('summary-margin');
-            marginEl.className = `text-3xl font-bold currency ${margin >= 60 ? 'text-green-600' : margin >= 40 ? 'text-orange-500' : 'text-red-600'}`;
-
-            // Build Table Layout based on mode
             const tHeadRow = document.getElementById('table-head-row');
             const tBody = document.getElementById('table-body');
             const tFoot = document.getElementById('table-foot');
@@ -430,26 +410,22 @@
                 <th class="px-6 py-4 font-semibold text-right">Gross Sales</th>
                 <th class="px-6 py-4 font-semibold text-right">Comm & Tax</th>
                 <th class="px-6 py-4 font-semibold text-right">Ad Spend</th>
+                <th class="px-6 py-4 font-semibold text-center">Cancelled</th>
                 <th class="px-6 py-4 font-semibold text-right">Net Payout</th>
                 <th class="px-6 py-4 font-semibold text-right">Margin %</th>
             `;
 
-            // Sort logic: if daily, sort by Date then Gross. If overall, sort by Gross descending.
             const sortedKeys = Object.keys(grouped).sort((a, b) => {
                 if (mode === 'daily') {
-                    // Simple string compare for dates, fallback to gross
                     const dateCmp = grouped[b].date.localeCompare(grouped[a].date);
                     if (dateCmp !== 0) return dateCmp;
                 }
                 return grouped[b].gross - grouped[a].gross;
             });
 
-            // Populate Rows
             sortedKeys.forEach(key => {
                 const g = grouped[key];
-                
-                // Skip completely empty rows that might just be 0 value adjustments
-                if (g.gross === 0 && g.net === 0 && g.ads === 0 && g.commTaxes === 0) return;
+                if (g.gross === 0 && g.net === 0 && g.ads === 0 && g.cancels === 0) return;
 
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-gray-50 transition-colors";
@@ -467,6 +443,7 @@
                     <td class="px-6 py-4 text-right currency">${formatPHP(g.gross)}</td>
                     <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(Math.abs(g.commTaxes))}</td>
                     <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(g.ads)}</td>
+                    <td class="px-6 py-4 text-center font-semibold ${g.cancels > 0 ? 'text-amber-600' : 'text-gray-400'}">${g.cancels}</td>
                     <td class="px-6 py-4 text-right font-semibold text-gray-900 currency">${formatPHP(g.net)}</td>
                     <td class="px-6 py-4 text-right font-medium ${marginColor}">${formatPercent(rowMargin)}</td>
                 `;
@@ -475,11 +452,8 @@
                 tBody.appendChild(tr);
             });
 
-            // Populate Footer Totals
             const footerTr = document.createElement('tr');
             let footHtml = '';
-            
-            // Align colspan depending on mode
             const colSpan = mode === 'daily' ? 2 : 1;
             
             footHtml += `
@@ -487,6 +461,7 @@
                 <td class="px-6 py-4 text-right currency">${formatPHP(grandGross)}</td>
                 <td class="px-6 py-4 text-right text-red-500 currency">-</td>
                 <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(grandAds)}</td>
+                <td class="px-6 py-4 text-center font-bold text-amber-600">${grandCancels}</td>
                 <td class="px-6 py-4 text-right font-bold text-green-700 currency">${formatPHP(grandNet)}</td>
                 <td class="px-6 py-4 text-right font-bold currency">${formatPercent(margin)}</td>
             `;
