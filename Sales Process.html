@@ -53,7 +53,7 @@
                     <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-slate-900 leading-tight">DM2 Sales Data Analyzer</h1>
+                    <h1 class="text-xl font-bold text-slate-900 leading-tight">Sales Data Analyzer</h1>
                     <p class="text-xs text-slate-500">Upload CSV report to calculate product totals and view analytics</p>
                 </div>
             </div>
@@ -92,7 +92,7 @@
                 <div class="p-4 bg-indigo-50 text-indigo-600 rounded-full mb-4 shadow-sm">
                     <i data-lucide="file-up" class="w-10 h-10"></i>
                 </div>
-                <h2 class="text-xl font-bold text-slate-800">UPLOAD MO DITO TIKOL</h2>
+                <h2 class="text-xl font-bold text-slate-800">TRY MO ULET UPLOAD TIKOL)</h2>
                 <p class="text-sm text-slate-500 mt-2">
                     Drag and drop your sales report here or click to select a file from your computer.
                 </p>
@@ -439,7 +439,7 @@
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
-                dynamicTyping: false, // Parse strings manually to safely handle currency/commas
+                dynamicTyping: false,
                 complete: function(results) {
                     if (!results.data || results.data.length === 0) {
                         showAlert('Invalid File', 'The uploaded CSV file is empty or missing content.', 'error');
@@ -467,13 +467,14 @@
 
         /**
          * Robust parser for DM2 CSV file structure
-         * Removes section totals, summary headers, empty spaces, and cleans monetary fields.
+         * Handles context tracking (forward filling date and category headers) and calculates item row totals.
          */
         function parseDM2Rows(dataArray) {
             const validRecords = [];
+            let currentDate = '';
+            let currentCategory = 'General';
 
             dataArray.forEach(row => {
-                // Get normalized key-value mappings (case-insensitive keys)
                 const keys = Object.keys(row);
                 const getVal = (possibleKeys) => {
                     for (let p of possibleKeys) {
@@ -485,20 +486,23 @@
                     return '';
                 };
 
+                const rawDate = getVal(['date', 'transaction_date', 'trans_date', 'created_at']);
+                const rawCategory = getVal(['category', 'item category', 'cat']);
+
+                // Forward-fill date if specified on section header
+                if (rawDate && rawDate.length >= 8 && !rawDate.toLowerCase().includes('total')) {
+                    currentDate = formatDateStr(rawDate);
+                }
+
+                // Forward-fill category if specified on section header
+                if (rawCategory && !rawCategory.toLowerCase().includes('total') && !rawCategory.toLowerCase().includes('sub')) {
+                    currentCategory = rawCategory;
+                }
+
                 const sku = getVal(['sku', 'item_sku', 'item sku', 'code', 'product_id', 'product id']);
                 const name = getVal(['item name', 'item_name', 'name', 'product_name', 'description', 'product']);
-                const category = getVal(['category', 'item category', 'cat']) || 'General';
-                const date = getVal(['date', 'transaction_date', 'trans_date', 'created_at']);
 
-                const qtyStr = getVal(['quantity sold', 'quantity_sold', 'quantity', 'qty', 'qty sold']);
-                const unitPriceStr = getVal(['unit price', 'unit_price', 'price', 'retail price']);
-                const grossSalesStr = getVal(['gross sales', 'gross_sales', 'gross']);
-                const netSalesStr = getVal(['net sales', 'net_sales', 'net']);
-                
-                const scPwdStr = getVal(['sc/pwd discount', 'sc_pwd_discount', 'pwd discount', 'sc discount']);
-                const otherDiscStr = getVal(['other discount', 'other_discount', 'discount']);
-
-                // Filter out non-product header / summary rows
+                // Filter out header / category total / summary rows
                 const lowerName = name.toLowerCase();
                 if (!name || 
                     lowerName.includes('total') || 
@@ -510,13 +514,21 @@
                     return;
                 }
 
+                const qtyStr = getVal(['quantity sold', 'quantity_sold', 'quantity', 'qty', 'qty sold']);
+                const unitPriceStr = getVal(['unit price', 'unit_price', 'price', 'retail price']);
+                const grossSalesStr = getVal(['gross sales', 'gross_sales', 'gross']);
+                const netSalesStr = getVal(['net sales', 'net_sales', 'net']);
+                
+                const scPwdStr = getVal(['sc/pwd discount', 'sc_pwd_discount', 'pwd discount', 'sc discount']);
+                const otherDiscStr = getVal(['other discount', 'other_discount', 'discount']);
+
                 const quantity = cleanNumber(qtyStr);
                 const unitPrice = cleanNumber(unitPriceStr);
                 let grossSales = cleanNumber(grossSalesStr);
                 let netSales = cleanNumber(netSalesStr);
                 const discount = cleanNumber(scPwdStr) + cleanNumber(otherDiscStr);
 
-                // Default calculations if total figures were omitted in row
+                // Calculations fallback
                 if (grossSales === 0 && quantity > 0 && unitPrice > 0) {
                     grossSales = quantity * unitPrice;
                 }
@@ -524,13 +536,12 @@
                     netSales = grossSales - discount;
                 }
 
-                // Ensure record has valid product indicators
                 if (quantity > 0 || netSales > 0 || grossSales > 0) {
                     validRecords.push({
-                        date: formatDateStr(date),
+                        date: currentDate || 'N/A',
                         sku: sku || 'N/A',
                         name: name,
-                        category: category,
+                        category: currentCategory || 'General',
                         quantity: quantity,
                         unitPrice: unitPrice,
                         grossSales: grossSales,
@@ -798,22 +809,6 @@
                     labels: dates.length > 0 ? dates : ['No Date Data'],
                     datasets: [{
                         label: 'Net Revenue (₱)',
-                        data: dates.length > 0 ? dates.map(d => dateMap[d]) : [0],
-                        borderColor: '#0284c7',
-                        backgroundColor: 'rgba(2, 132, 199, 0.08)',
-                        fill: true,
-                        tension: 0.25,
-                        pointRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
-                }
-            });
-
                         data: dates.length > 0 ? dates.map(d => dateMap[d]) : [0],
                         borderColor: '#0284c7',
                         backgroundColor: 'rgba(2, 132, 199, 0.08)',
