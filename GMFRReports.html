@@ -57,13 +57,12 @@
                 </svg>
                 <h1 class="text-2xl font-bold tracking-wide">GRAB GMFR</h1>
             </div>
-            <div class="text-sm font-light text-gray-300">GMFR Report Analyzer with Cancellations</div>
+            <div class="text-sm font-light text-gray-300">GMFR Report Analyzer with Promo Tracking</div>
         </div>
     </header>
 
     <main class="container mx-auto px-6 py-8 flex-grow flex flex-col gap-8">
         
-        <!-- Controls Section -->
         <div class="bg-white rounded-xl shadow-sm p-6 flex flex-col md:flex-row items-center justify-between gap-6">
             
             <div class="flex-1 w-full">
@@ -89,48 +88,41 @@
                     <select id="view-select" disabled class="block w-full pl-3 pr-10 py-3 text-base border border-gray-300 focus:outline-none focus:ring-bakery-primary focus:border-bakery-primary sm:text-sm rounded-lg bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
                         <option value="overall">Overall Summary (All Files)</option>
                         <option value="daily">Daily Breakdown</option>
+                        <option value="promo_overall" class="font-semibold text-bakery-primary">Overall Promo Performance</option>
+                        <option value="promo_branch" class="font-semibold text-bakery-primary">Promo Breakdown by Branch</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Date Selector Section -->
             <div id="date-selector-container" class="hidden w-full border-t md:border-t-0 md:border-l border-gray-200 pt-6 md:pt-0 md:pl-6">
                 <h2 class="text-lg font-semibold text-gray-800 mb-2">3. Select Date</h2>
                 <div class="relative">
                     <select id="date-select" class="block w-full pl-3 pr-10 py-3 text-base border border-gray-300 focus:outline-none focus:ring-bakery-primary focus:border-bakery-primary sm:text-sm rounded-lg bg-gray-50">
-                        <!-- Options populated by JS -->
                     </select>
                 </div>
             </div>
 
         </div>
 
-        <!-- Dashboard Content (Hidden initially) -->
         <div id="dashboard-content" class="hidden flex flex-col gap-8">
             
-            <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <!-- Gross Sales -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
                     <p class="text-sm font-medium text-gray-500">Total Gross Sales</p>
                     <p class="text-2xl font-bold text-gray-900 mt-1 currency" id="summary-gross">₱0.00</p>
                 </div>
-                <!-- Net Payout -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
                     <p class="text-sm font-medium text-gray-500">Net Take-Home Payout</p>
                     <p class="text-2xl font-bold text-gray-900 mt-1 currency" id="summary-net">₱0.00</p>
                 </div>
-                <!-- Total Ad Spend -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-400">
-                    <p class="text-sm font-medium text-gray-500">Total Ad Spend</p>
+                    <p class="text-sm font-medium text-gray-500" id="ad-spend-label">Total Ad Spend</p>
                     <p class="text-2xl font-bold text-red-600 mt-1 currency" id="summary-ads">₱0.00</p>
                 </div>
-                <!-- Cancellations -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-amber-500">
                     <p class="text-sm font-medium text-gray-500">Cancelled Orders</p>
                     <p class="text-2xl font-bold text-amber-600 mt-1" id="summary-cancels">0</p>
                 </div>
-                <!-- Margin -->
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500">
                     <p class="text-sm font-medium text-gray-500">Effective Margin</p>
                     <div class="flex items-end gap-1 mt-1">
@@ -139,7 +131,6 @@
                 </div>
             </div>
 
-            <!-- Data Table -->
             <div class="bg-white rounded-xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                     <h3 class="text-lg font-semibold text-gray-800" id="table-title">Performance Breakdown</h3>
@@ -148,16 +139,23 @@
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr id="table-head-row" class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b">
-                                <!-- Headers injected via JS -->
                             </tr>
                         </thead>
                         <tbody id="table-body" class="divide-y divide-gray-100 text-gray-700 text-sm">
-                            <!-- Rows injected via JS -->
                         </tbody>
                         <tfoot id="table-foot" class="bg-gray-50 font-semibold text-gray-900 border-t-2 border-gray-200">
-                             <!-- Footer totals injected via JS -->
                         </tfoot>
                     </table>
+                </div>
+                
+                <!-- EXPORT BUTTON AREA -->
+                <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+                    <button id="export-btn" class="hidden flex items-center gap-2 bg-bakery-primary hover:bg-orange-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Export to Excel
+                    </button>
                 </div>
             </div>
 
@@ -173,25 +171,20 @@
         const dateSelectorContainer = document.getElementById('date-selector-container');
         const dateSelect = document.getElementById('date-select');
         const dashboardContent = document.getElementById('dashboard-content');
+        const exportBtn = document.getElementById('export-btn');
 
         let globalRawData = [];
         let uniqueDates = new Set();
+        let excelExportData = []; // Holds raw numeric data for Excel
 
-        const formatPHP = (num) => {
-            return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num || 0);
-        };
-
-        const formatPercent = (num) => {
-            return (num || 0).toFixed(2) + '%';
-        };
+        const formatPHP = (num) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num || 0);
+        const formatPercent = (num) => (num || 0).toFixed(2) + '%';
 
         const getVal = (row, ...possibleKeys) => {
             for (let key of possibleKeys) {
                 if (row[key] !== undefined && row[key] !== "") return parseFloat(row[key]) || 0;
                 for (let rKey in row) {
-                    if (rKey.trim().toLowerCase() === key.toLowerCase()) {
-                        return parseFloat(row[rKey]) || 0;
-                    }
+                    if (rKey.trim().toLowerCase() === key.toLowerCase()) return parseFloat(row[rKey]) || 0;
                 }
             }
             return 0;
@@ -199,11 +192,14 @@
 
         const getStringVal = (row, key) => {
             for (let rKey in row) {
-                if (rKey.trim().toLowerCase() === key.toLowerCase()) {
-                    return (row[rKey] || "").toString().trim();
-                }
+                if (rKey.trim().toLowerCase() === key.toLowerCase()) return (row[rKey] || "").toString().trim();
             }
             return "";
+        };
+
+        const cleanPromoName = (name) => {
+            if (!name) return "";
+            return name.replace(/\s*-\s*\d{4}-\d{2}-\d{2}$/, '').trim();
         };
 
         fileInput.addEventListener('change', async function(e) {
@@ -214,6 +210,7 @@
             fileError.classList.add('hidden');
             loadingIndicator.classList.replace('hidden', 'flex');
             dashboardContent.classList.add('hidden');
+            exportBtn.classList.add('hidden');
             viewSelect.disabled = true;
             globalRawData = [];
             uniqueDates.clear();
@@ -222,17 +219,12 @@
                 const filePromises = Array.from(files).map(file => readExcelFile(file));
                 const results = await Promise.all(filePromises);
                 
-                results.forEach(sheetData => {
-                    globalRawData = globalRawData.concat(sheetData);
-                });
+                results.forEach(sheetData => { globalRawData = globalRawData.concat(sheetData); });
 
-                if (globalRawData.length === 0) {
-                    throw new Error("No valid transactions found in the selected files.");
-                }
+                if (globalRawData.length === 0) throw new Error("No valid transactions found.");
 
-                dateSelect.innerHTML = '<option value="all">All Dates (Grouped by Day)</option>';
-                const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b) - new Date(a));
-                sortedDates.forEach(dateStr => {
+                dateSelect.innerHTML = '<option value="all">All Dates</option>';
+                Array.from(uniqueDates).sort((a, b) => new Date(b) - new Date(a)).forEach(dateStr => {
                     const option = document.createElement('option');
                     option.value = dateStr;
                     option.textContent = dateStr;
@@ -243,11 +235,12 @@
                 renderDashboard();
                 loadingIndicator.classList.replace('flex', 'hidden');
                 dashboardContent.classList.remove('hidden');
+                exportBtn.classList.remove('hidden');
 
             } catch (error) {
                 console.error(error);
                 loadingIndicator.classList.replace('flex', 'hidden');
-                fileError.textContent = error.message || "An error occurred while parsing the files.";
+                fileError.textContent = error.message;
                 fileError.classList.remove('hidden');
             }
         });
@@ -263,8 +256,18 @@
             renderDashboard();
         });
 
-        dateSelect.addEventListener('change', () => {
-            renderDashboard();
+        dateSelect.addEventListener('change', () => renderDashboard());
+
+        exportBtn.addEventListener('click', () => {
+            if (excelExportData.length === 0) return;
+            const ws = XLSX.utils.aoa_to_sheet(excelExportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "GMFR Report");
+            
+            // Generate filename based on current view
+            const viewName = viewSelect.options[viewSelect.selectedIndex].text.replace(/\s+/g, '_');
+            const dateStamp = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, `GMFR_${viewName}_${dateStamp}.xlsx`);
         });
 
         function readExcelFile(file) {
@@ -275,9 +278,24 @@
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         const sheetName = workbook.SheetNames.includes('Transactions') ? 'Transactions' : workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[sheetName];
-                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-                        const parsedRows = jsonData.map(row => parseRow(row));
+                        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+
+                        const promoMap = {};
+                        jsonData.forEach(row => {
+                            const cat = getStringVal(row, 'Category').toLowerCase().trim();
+                            if (cat === 'advertisement' || cat === 'campaign') {
+                                const store = getStringVal(row, 'Store Name');
+                                const updatedOn = getStringVal(row, 'Updated On');
+                                let desc = getStringVal(row, 'Description') || getStringVal(row, 'Campaign Name');
+                                desc = cleanPromoName(desc);
+
+                                if (desc && store && updatedOn) {
+                                    promoMap[`${store}_${updatedOn}`] = desc;
+                                }
+                            }
+                        });
+
+                        const parsedRows = jsonData.map(row => parseRow(row, promoMap));
                         resolve(parsedRows);
                     } catch (err) {
                         reject(err);
@@ -288,56 +306,42 @@
             });
         }
 
-        function parseRow(row) {
-            const rawCategory = getStringVal(row, 'Category');
-            const category = rawCategory.toLowerCase();
+        function parseRow(row, promoMap) {
+            const category = getStringVal(row, 'Category').toLowerCase().trim();
             const storeName = getStringVal(row, 'Store Name') || "Unknown Branch";
+            const updatedOn = getStringVal(row, 'Updated On');
             const status = getStringVal(row, 'Status').toLowerCase();
-            const cancelReason = getStringVal(row, 'Cancellation Reason');
             
             const rawDate = getStringVal(row, 'Created On') || getStringVal(row, 'Date');
             let dateVal = "Unknown Date";
             if (rawDate) {
                 const parts = rawDate.split(' ');
-                if (parts.length >= 3) {
-                    dateVal = `${parts[0]} ${parts[1]} ${parts[2]}`;
-                } else {
-                    dateVal = rawDate;
-                }
+                dateVal = parts.length >= 3 ? `${parts[0]} ${parts[1]} ${parts[2]}` : rawDate;
+                uniqueDates.add(dateVal);
+            }
+
+            let promoName = "";
+            if (category === 'payment') {
+                promoName = promoMap[`${storeName}_${updatedOn}`] || "";
+            } else if (category === 'advertisement' || category === 'campaign') {
+                let rawDesc = getStringVal(row, 'Description') || getStringVal(row, 'Campaign Name') || "";
+                promoName = cleanPromoName(rawDesc);
             }
 
             const amount = getVal(row, 'Amount');
             const totalVal = getVal(row, 'Total', 'Net Payout');
-            
-            if (dateVal !== "Unknown Date") {
-                uniqueDates.add(dateVal);
-            }
-
-            const orderComm = getVal(row, 'Order commission', 'Commission');
-            const taxGrabFood = getVal(row, 'Tax on GrabFood commission', 'Tax');
-            const totalCommissionTax = orderComm + taxGrabFood;
-
-            let grossSales = 0;
-            let adSpend = 0;
-            let isCancelled = (status === 'cancelled');
-
-            if (category === 'payment' && !isCancelled) {
-                grossSales = amount;
-            }
-            if (category === 'advertisement' || category === 'campaign') {
-                adSpend = Math.abs(totalVal);
-            }
+            const commTax = getVal(row, 'Order commission', 'Commission') + getVal(row, 'Tax on GrabFood commission', 'Tax');
+            const isCancelled = (status === 'cancelled');
 
             return {
                 date: dateVal,
                 store: storeName,
+                promo: promoName,
                 category: category,
-                status: status,
-                cancelReason: cancelReason,
-                grossSales: grossSales,
+                grossSales: (category === 'payment' && !isCancelled) ? amount : 0,
                 netPayout: isCancelled ? 0 : totalVal,
-                adSpend: adSpend,
-                commissionTaxes: isCancelled ? 0 : totalCommissionTax,
+                adSpend: (category === 'advertisement' || category === 'campaign') ? Math.abs(totalVal) : 0,
+                commissionTaxes: isCancelled ? 0 : commTax,
                 isCancelled: isCancelled ? 1 : 0
             };
         }
@@ -346,28 +350,34 @@
             const mode = viewSelect.value;
             const selectedDate = dateSelect.value;
             const grouped = {};
-            let grandGross = 0;
-            let grandNet = 0;
-            let grandAds = 0;
-            let grandCancels = 0;
+            let grandGross = 0, grandNet = 0, grandAds = 0, grandCancels = 0;
 
+            excelExportData = []; // Reset export array
             let dataToProcess = globalRawData;
-            if (mode === 'daily' && selectedDate !== 'all') {
-                dataToProcess = globalRawData.filter(row => row.date === selectedDate);
+            
+            if (mode.startsWith('promo')) {
+                document.getElementById('ad-spend-label').textContent = "Total Promo Spend";
+                dataToProcess = globalRawData.filter(row => row.promo !== "");
+            } else {
+                document.getElementById('ad-spend-label').textContent = "Total Ad Spend";
+                if (mode === 'daily' && selectedDate !== 'all') {
+                    dataToProcess = globalRawData.filter(row => row.date === selectedDate);
+                }
             }
 
             dataToProcess.forEach(row => {
-                const key = mode === 'daily' ? `${row.date} | ${row.store}` : row.store;
+                let key;
+                if (mode === 'promo_overall') key = row.promo;
+                else if (mode === 'promo_branch') key = `${row.promo} | ${row.store}`;
+                else if (mode === 'daily') key = `${row.date} | ${row.store}`;
+                else key = row.store;
 
                 if (!grouped[key]) {
                     grouped[key] = {
                         date: row.date,
-                        store: row.store,
-                        gross: 0,
-                        net: 0,
-                        ads: 0,
-                        commTaxes: 0,
-                        cancels: 0
+                        store: mode === 'promo_overall' ? 'All Branches' : row.store,
+                        promo: row.promo,
+                        gross: 0, net: 0, ads: 0, commTaxes: 0, cancels: 0
                     };
                 }
 
@@ -394,32 +404,51 @@
             const tHeadRow = document.getElementById('table-head-row');
             const tBody = document.getElementById('table-body');
             const tFoot = document.getElementById('table-foot');
-            
-            tHeadRow.innerHTML = '';
-            tBody.innerHTML = '';
-            tFoot.innerHTML = '';
+            tHeadRow.innerHTML = ''; tBody.innerHTML = ''; tFoot.innerHTML = '';
 
-            document.getElementById('table-title').textContent = mode === 'daily' ? 'Daily Breakdown by Branch' : 'Overall Performance by Branch';
+            // Set up HTML Headers and Excel Headers
+            let headerExportRow = [];
 
-            if (mode === 'daily') {
+            if (mode === 'promo_overall') {
+                document.getElementById('table-title').textContent = 'Overall Promotional Performance';
+                tHeadRow.innerHTML += `<th class="px-6 py-4 font-semibold w-1/3">Promo Campaign</th>`;
+                headerExportRow.push('Promo Campaign');
+            } else if (mode === 'promo_branch') {
+                document.getElementById('table-title').textContent = 'Promotional Sales by Branch';
+                tHeadRow.innerHTML += `<th class="px-6 py-4 font-semibold w-1/4">Promo Campaign</th>`;
+                tHeadRow.innerHTML += `<th class="px-6 py-4 font-semibold">Store Name</th>`;
+                headerExportRow.push('Promo Campaign', 'Store Name');
+            } else if (mode === 'daily') {
+                document.getElementById('table-title').textContent = 'Daily Breakdown by Branch';
                 tHeadRow.innerHTML += `<th class="px-6 py-4 font-semibold">Date</th>`;
+                tHeadRow.innerHTML += `<th class="px-6 py-4 font-semibold">Store Name</th>`;
+                headerExportRow.push('Date', 'Store Name');
+            } else {
+                document.getElementById('table-title').textContent = 'Overall Performance by Branch';
+                tHeadRow.innerHTML += `<th class="px-6 py-4 font-semibold">Store Name</th>`;
+                headerExportRow.push('Store Name');
             }
             
+            const spendLabel = mode.startsWith('promo') ? 'Promo Spend' : 'Ad Spend';
             tHeadRow.innerHTML += `
-                <th class="px-6 py-4 font-semibold">Store Name</th>
                 <th class="px-6 py-4 font-semibold text-right">Gross Sales</th>
                 <th class="px-6 py-4 font-semibold text-right">Comm & Tax</th>
-                <th class="px-6 py-4 font-semibold text-right">Ad Spend</th>
+                <th class="px-6 py-4 font-semibold text-right">${spendLabel}</th>
                 <th class="px-6 py-4 font-semibold text-center">Cancelled</th>
                 <th class="px-6 py-4 font-semibold text-right">Net Payout</th>
                 <th class="px-6 py-4 font-semibold text-right">Margin %</th>
             `;
+            headerExportRow.push('Gross Sales', 'Comm & Tax', spendLabel, 'Cancelled', 'Net Payout', 'Margin %');
+            excelExportData.push(headerExportRow);
 
             const sortedKeys = Object.keys(grouped).sort((a, b) => {
-                if (mode === 'daily') {
-                    const dateCmp = grouped[b].date.localeCompare(grouped[a].date);
-                    if (dateCmp !== 0) return dateCmp;
+                if (mode === 'promo_overall') return grouped[b].gross - grouped[a].gross;
+                if (mode === 'promo_branch') {
+                    const promoCmp = grouped[a].promo.localeCompare(grouped[b].promo);
+                    if (promoCmp !== 0) return promoCmp;
+                    return grouped[b].gross - grouped[a].gross;
                 }
+                if (mode === 'daily' && grouped[b].date !== grouped[a].date) return grouped[b].date.localeCompare(grouped[a].date);
                 return grouped[b].gross - grouped[a].gross;
             });
 
@@ -427,19 +456,29 @@
                 const g = grouped[key];
                 if (g.gross === 0 && g.net === 0 && g.ads === 0 && g.cancels === 0) return;
 
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50 transition-colors";
-                
-                let html = '';
-                if (mode === 'daily') {
-                    html += `<td class="px-6 py-4 whitespace-nowrap text-gray-500">${g.date}</td>`;
-                }
-                
                 const rowMargin = g.gross > 0 ? (g.net / g.gross) * 100 : 0;
                 let marginColor = rowMargin >= 60 ? 'text-green-600' : (rowMargin >= 40 ? 'text-orange-500' : 'text-red-500');
 
+                let html = '';
+                let rowExportData = [];
+
+                if (mode === 'promo_overall') {
+                    html += `<td class="px-6 py-4 text-xs font-semibold text-bakery-primary">${g.promo}</td>`;
+                    rowExportData.push(g.promo);
+                } else if (mode === 'promo_branch') {
+                    html += `<td class="px-6 py-4 text-xs font-semibold text-bakery-primary">${g.promo}</td>`;
+                    html += `<td class="px-6 py-4 font-medium text-gray-900">${g.store}</td>`;
+                    rowExportData.push(g.promo, g.store);
+                } else if (mode === 'daily') {
+                    html += `<td class="px-6 py-4 whitespace-nowrap text-gray-500">${g.date}</td>`;
+                    html += `<td class="px-6 py-4 font-medium text-gray-900">${g.store}</td>`;
+                    rowExportData.push(g.date, g.store);
+                } else {
+                    html += `<td class="px-6 py-4 font-medium text-gray-900">${g.store}</td>`;
+                    rowExportData.push(g.store);
+                }
+                
                 html += `
-                    <td class="px-6 py-4 font-medium text-gray-900">${g.store}</td>
                     <td class="px-6 py-4 text-right currency">${formatPHP(g.gross)}</td>
                     <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(Math.abs(g.commTaxes))}</td>
                     <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(g.ads)}</td>
@@ -448,15 +487,18 @@
                     <td class="px-6 py-4 text-right font-medium ${marginColor}">${formatPercent(rowMargin)}</td>
                 `;
                 
+                // Push raw numeric data to Excel array (not formatted strings)
+                rowExportData.push(g.gross, Math.abs(g.commTaxes), g.ads, g.cancels, g.net, formatPercent(rowMargin));
+                excelExportData.push(rowExportData);
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
                 tr.innerHTML = html;
                 tBody.appendChild(tr);
             });
 
-            const footerTr = document.createElement('tr');
-            let footHtml = '';
-            const colSpan = mode === 'daily' ? 2 : 1;
-            
-            footHtml += `
+            const colSpan = (mode === 'promo_branch' || mode === 'daily') ? 2 : 1;
+            tFoot.innerHTML = `<tr>
                 <td colspan="${colSpan}" class="px-6 py-4 font-bold text-right">TOTALS:</td>
                 <td class="px-6 py-4 text-right currency">${formatPHP(grandGross)}</td>
                 <td class="px-6 py-4 text-right text-red-500 currency">-</td>
@@ -464,9 +506,14 @@
                 <td class="px-6 py-4 text-center font-bold text-amber-600">${grandCancels}</td>
                 <td class="px-6 py-4 text-right font-bold text-green-700 currency">${formatPHP(grandNet)}</td>
                 <td class="px-6 py-4 text-right font-bold currency">${formatPercent(margin)}</td>
-            `;
-            footerTr.innerHTML = footHtml;
-            tFoot.appendChild(footerTr);
+            </tr>`;
+
+            // Add Totals to Excel Output
+            let totalsExportRow = new Array(colSpan).fill('');
+            totalsExportRow[colSpan - 1] = 'TOTALS:';
+            totalsExportRow.push(grandGross, 0, grandAds, grandCancels, grandNet, formatPercent(margin));
+            excelExportData.push([]); // blank spacer row
+            excelExportData.push(totalsExportRow);
         }
     </script>
 </body>
