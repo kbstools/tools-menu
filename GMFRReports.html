@@ -68,7 +68,7 @@
             <div class="flex-1 w-full">
                 <h2 class="text-lg font-semibold text-gray-800 mb-2">1. Upload Report(s)</h2>
                 <div class="relative">
-                    <input type="file" id="file-input" accept=".xlsx, .xls" multiple class="hidden" />
+                    <input type="file" id="file-input" accept=".xlsx, .xls, .csv" multiple class="hidden" />
                     <label for="file-input" class="cursor-pointer flex items-center justify-center w-full sm:w-auto px-6 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 hover:border-bakery-primary transition-all">
                         <svg class="h-5 w-5 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -106,7 +106,7 @@
 
         <div id="dashboard-content" class="hidden flex flex-col gap-8">
             
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
                     <p class="text-sm font-medium text-gray-500">Total Gross Sales</p>
                     <p class="text-2xl font-bold text-gray-900 mt-1 currency" id="summary-gross">₱0.00</p>
@@ -114,6 +114,10 @@
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
                     <p class="text-sm font-medium text-gray-500">Net Take-Home Payout</p>
                     <p class="text-2xl font-bold text-gray-900 mt-1 currency" id="summary-net">₱0.00</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-pink-400">
+                    <p class="text-sm font-medium text-gray-500">Merchant Discounts</p>
+                    <p class="text-2xl font-bold text-pink-600 mt-1 currency" id="summary-discounts">₱0.00</p>
                 </div>
                 <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-400">
                     <p class="text-sm font-medium text-gray-500" id="ad-spend-label">Total Ad Spend</p>
@@ -148,7 +152,6 @@
                     </table>
                 </div>
                 
-                <!-- EXPORT BUTTON AREA -->
                 <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
                     <button id="export-btn" class="hidden flex items-center gap-2 bg-bakery-primary hover:bg-orange-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -175,7 +178,7 @@
 
         let globalRawData = [];
         let uniqueDates = new Set();
-        let excelExportData = []; // Holds raw numeric data for Excel
+        let excelExportData = []; 
 
         const formatPHP = (num) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num || 0);
         const formatPercent = (num) => (num || 0).toFixed(2) + '%';
@@ -221,7 +224,7 @@
                 
                 results.forEach(sheetData => { globalRawData = globalRawData.concat(sheetData); });
 
-                if (globalRawData.length === 0) throw new Error("No valid transactions found.");
+                if (globalRawData.length === 0) throw new Error("No valid transaction data found in the files.");
 
                 dateSelect.innerHTML = '<option value="all">All Dates</option>';
                 Array.from(uniqueDates).sort((a, b) => new Date(b) - new Date(a)).forEach(dateStr => {
@@ -264,7 +267,6 @@
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "GMFR Report");
             
-            // Generate filename based on current view
             const viewName = viewSelect.options[viewSelect.selectedIndex].text.replace(/\s+/g, '_');
             const dateStamp = new Date().toISOString().split('T')[0];
             XLSX.writeFile(wb, `GMFR_${viewName}_${dateStamp}.xlsx`);
@@ -278,7 +280,21 @@
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         const sheetName = workbook.SheetNames.includes('Transactions') ? 'Transactions' : workbook.SheetNames[0];
-                        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+                        const worksheet = workbook.Sheets[sheetName];
+
+                        // DYNAMIC HEADER DETECTION: Find which row the actual table headers start on
+                        const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        let headerRowIdx = 0;
+                        for (let i = 0; i < Math.min(25, aoa.length); i++) {
+                            const rowArr = aoa[i];
+                            if (rowArr && rowArr.some(cell => typeof cell === 'string' && (cell.toLowerCase().trim() === 'category' || cell.toLowerCase().trim() === 'store name'))) {
+                                headerRowIdx = i;
+                                break;
+                            }
+                        }
+
+                        // Parse JSON starting from the dynamically found header row
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: headerRowIdx, defval: "" });
 
                         const promoMap = {};
                         jsonData.forEach(row => {
@@ -330,18 +346,40 @@
 
             const amount = getVal(row, 'Amount');
             const totalVal = getVal(row, 'Total', 'Net Payout');
-            const commTax = getVal(row, 'Order commission', 'Commission') + getVal(row, 'Tax on GrabFood commission', 'Tax');
+            
+            const itemDiscount = Math.abs(getVal(row, 'Discount (Merchant-Funded)'));
+            const deliveryDiscount = Math.abs(getVal(row, 'Delivery Fee Discount (Merchant-Funded)'));
+            const totalDiscounts = itemDiscount + deliveryDiscount;
+
             const isCancelled = (status === 'cancelled');
+
+            let grossSales = 0;
+            let netPayout = totalVal; // Capture net payout universally to perfectly balance bank deposits
+            let adSpend = 0;
+            let discounts = 0;
+            let commissionTaxes = 0;
+
+            if (isCancelled) {
+                netPayout = 0; // Cancelled orders have zero financial impact
+            } else if (category === 'payment') {
+                grossSales = amount;
+                discounts = totalDiscounts;
+                // Perfect Algebraic Balance: Capture 100% of hidden fees algebraically
+                commissionTaxes = grossSales - discounts - netPayout;
+            } else if (category === 'advertisement' || category === 'campaign') {
+                adSpend = Math.abs(totalVal);
+            }
 
             return {
                 date: dateVal,
                 store: storeName,
                 promo: promoName,
                 category: category,
-                grossSales: (category === 'payment' && !isCancelled) ? amount : 0,
-                netPayout: isCancelled ? 0 : totalVal,
-                adSpend: (category === 'advertisement' || category === 'campaign') ? Math.abs(totalVal) : 0,
-                commissionTaxes: isCancelled ? 0 : commTax,
+                grossSales: grossSales,
+                netPayout: netPayout,
+                adSpend: adSpend,
+                commissionTaxes: commissionTaxes,
+                discounts: discounts,
                 isCancelled: isCancelled ? 1 : 0
             };
         }
@@ -350,9 +388,9 @@
             const mode = viewSelect.value;
             const selectedDate = dateSelect.value;
             const grouped = {};
-            let grandGross = 0, grandNet = 0, grandAds = 0, grandCancels = 0;
+            let grandGross = 0, grandNet = 0, grandAds = 0, grandCancels = 0, grandDiscounts = 0, grandCommTaxes = 0;
 
-            excelExportData = []; // Reset export array
+            excelExportData = []; 
             let dataToProcess = globalRawData;
             
             if (mode.startsWith('promo')) {
@@ -377,7 +415,7 @@
                         date: row.date,
                         store: mode === 'promo_overall' ? 'All Branches' : row.store,
                         promo: row.promo,
-                        gross: 0, net: 0, ads: 0, commTaxes: 0, cancels: 0
+                        gross: 0, net: 0, ads: 0, commTaxes: 0, discounts: 0, cancels: 0
                     };
                 }
 
@@ -385,16 +423,20 @@
                 grouped[key].net += row.netPayout;
                 grouped[key].ads += row.adSpend;
                 grouped[key].commTaxes += row.commissionTaxes;
+                grouped[key].discounts += row.discounts;
                 grouped[key].cancels += row.isCancelled;
 
                 grandGross += row.grossSales;
                 grandNet += row.netPayout;
                 grandAds += row.adSpend;
+                grandCommTaxes += row.commissionTaxes;
+                grandDiscounts += row.discounts;
                 grandCancels += row.isCancelled;
             });
 
             document.getElementById('summary-gross').textContent = formatPHP(grandGross);
             document.getElementById('summary-net').textContent = formatPHP(grandNet);
+            document.getElementById('summary-discounts').textContent = formatPHP(grandDiscounts);
             document.getElementById('summary-ads').textContent = formatPHP(grandAds);
             document.getElementById('summary-cancels').textContent = grandCancels;
             
@@ -406,7 +448,6 @@
             const tFoot = document.getElementById('table-foot');
             tHeadRow.innerHTML = ''; tBody.innerHTML = ''; tFoot.innerHTML = '';
 
-            // Set up HTML Headers and Excel Headers
             let headerExportRow = [];
 
             if (mode === 'promo_overall') {
@@ -433,12 +474,13 @@
             tHeadRow.innerHTML += `
                 <th class="px-6 py-4 font-semibold text-right">Gross Sales</th>
                 <th class="px-6 py-4 font-semibold text-right">Comm & Tax</th>
+                <th class="px-6 py-4 font-semibold text-right text-pink-500">Discounts</th>
                 <th class="px-6 py-4 font-semibold text-right">${spendLabel}</th>
                 <th class="px-6 py-4 font-semibold text-center">Cancelled</th>
                 <th class="px-6 py-4 font-semibold text-right">Net Payout</th>
                 <th class="px-6 py-4 font-semibold text-right">Margin %</th>
             `;
-            headerExportRow.push('Gross Sales', 'Comm & Tax', spendLabel, 'Cancelled', 'Net Payout', 'Margin %');
+            headerExportRow.push('Gross Sales', 'Comm & Tax', 'Discounts', spendLabel, 'Cancelled', 'Net Payout', 'Margin %');
             excelExportData.push(headerExportRow);
 
             const sortedKeys = Object.keys(grouped).sort((a, b) => {
@@ -480,15 +522,15 @@
                 
                 html += `
                     <td class="px-6 py-4 text-right currency">${formatPHP(g.gross)}</td>
-                    <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(Math.abs(g.commTaxes))}</td>
+                    <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(g.commTaxes)}</td>
+                    <td class="px-6 py-4 text-right text-pink-500 currency">${formatPHP(g.discounts)}</td>
                     <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(g.ads)}</td>
                     <td class="px-6 py-4 text-center font-semibold ${g.cancels > 0 ? 'text-amber-600' : 'text-gray-400'}">${g.cancels}</td>
                     <td class="px-6 py-4 text-right font-semibold text-gray-900 currency">${formatPHP(g.net)}</td>
                     <td class="px-6 py-4 text-right font-medium ${marginColor}">${formatPercent(rowMargin)}</td>
                 `;
                 
-                // Push raw numeric data to Excel array (not formatted strings)
-                rowExportData.push(g.gross, Math.abs(g.commTaxes), g.ads, g.cancels, g.net, formatPercent(rowMargin));
+                rowExportData.push(g.gross, g.commTaxes, g.discounts, g.ads, g.cancels, g.net, formatPercent(rowMargin));
                 excelExportData.push(rowExportData);
 
                 const tr = document.createElement('tr');
@@ -501,18 +543,18 @@
             tFoot.innerHTML = `<tr>
                 <td colspan="${colSpan}" class="px-6 py-4 font-bold text-right">TOTALS:</td>
                 <td class="px-6 py-4 text-right currency">${formatPHP(grandGross)}</td>
-                <td class="px-6 py-4 text-right text-red-500 currency">-</td>
+                <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(grandCommTaxes)}</td>
+                <td class="px-6 py-4 text-right text-pink-500 currency">${formatPHP(grandDiscounts)}</td>
                 <td class="px-6 py-4 text-right text-red-500 currency">${formatPHP(grandAds)}</td>
                 <td class="px-6 py-4 text-center font-bold text-amber-600">${grandCancels}</td>
                 <td class="px-6 py-4 text-right font-bold text-green-700 currency">${formatPHP(grandNet)}</td>
                 <td class="px-6 py-4 text-right font-bold currency">${formatPercent(margin)}</td>
             </tr>`;
 
-            // Add Totals to Excel Output
             let totalsExportRow = new Array(colSpan).fill('');
             totalsExportRow[colSpan - 1] = 'TOTALS:';
-            totalsExportRow.push(grandGross, 0, grandAds, grandCancels, grandNet, formatPercent(margin));
-            excelExportData.push([]); // blank spacer row
+            totalsExportRow.push(grandGross, grandCommTaxes, grandDiscounts, grandAds, grandCancels, grandNet, formatPercent(margin));
+            excelExportData.push([]); 
             excelExportData.push(totalsExportRow);
         }
     </script>
